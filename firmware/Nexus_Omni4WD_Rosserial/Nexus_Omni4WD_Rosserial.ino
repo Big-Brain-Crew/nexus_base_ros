@@ -21,8 +21,8 @@
  * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
- *  
- *  
+ *
+ *
  * NOTE: The Sonars cannot be used simultaneously with the serial interface!
  *
  * This sketch is the maximum reasonable functionality that could be implemented with rosserial.
@@ -73,7 +73,7 @@
 #include <nexus_base_ros/Motors.h>
 #include <nexus_base_ros/EmergencyStopEnable.h>
 #include <nexus_base_ros/ArmingEnable.h>
-#include <PinChangeInt.h>       // https://github.com/GreyGnome/PinChangeInt (update to https://github.com/GreyGnome/EnableInterrupt ??)
+#include <EnableInterrupt.h>
 #include <digitalWriteFast.h>   // library for high performance digital reads and writes by jrraines
                                 // see http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1267553811/0
                                 // and http://code.google.com/p/digitalwritefast/
@@ -162,7 +162,7 @@ void cmdMotors_CallBack(const nexus_base_ros::Motors& msg) {
      else {
        digitalWriteFast(M3_DIR_PIN, LOW);
      }
-     
+
      if(timeOutCnt==0) {
        analogWrite(M0_PWM_PIN, abs(pwmVal[0])); // first time write to start PWM
        analogWrite(M1_PWM_PIN, abs(pwmVal[1]));
@@ -270,10 +270,10 @@ void setup() {
 
   pinMode(LED, OUTPUT);
 
-  PCattachInterrupt(ENC0_A_PIN, IsrEnc_0_A, RISING);
-  PCattachInterrupt(ENC1_A_PIN, IsrEnc_1_A, RISING);
-  PCattachInterrupt(ENC2_A_PIN, IsrEnc_2_A, RISING);
-  PCattachInterrupt(ENC3_A_PIN, IsrEnc_3_A, RISING);
+  enableInterrupt(ENC0_A_PIN, IsrEnc_0_A, RISING);
+  enableInterrupt(ENC1_A_PIN, IsrEnc_1_A, RISING);
+  enableInterrupt(ENC2_A_PIN, IsrEnc_2_A, RISING);
+  enableInterrupt(ENC3_A_PIN, IsrEnc_3_A, RISING);
 
   // modify PWM frequency of motors
   TCCR1B = (TCCR1B & 0xF8) | 0x01;    // Pin9,Pin10 PWM 31250Hz
@@ -299,7 +299,7 @@ void loop() {
   //enc_msg.enc1 = pwmVal[1];
   //enc_msg.enc2 = pwmVal[2];
   //enc_msg.enc3 = pwmVal[3];
-  
+
   // calculate delta-counts for the current cycle.
   enc_msg.enc0 = encTicks0 - encTicks0_prev;
   enc_msg.enc1 = encTicks1 - encTicks1_prev;
@@ -325,7 +325,7 @@ void loop() {
   }
 
   nh.spinOnce();
-  
+
   // Wait for the remaining time in the loop and set the new loopTimer value.
   while(loopTimer > micros()) {;}
   loopTimer += LOOPTIME;
