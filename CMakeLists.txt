@@ -6,7 +6,7 @@ project(nexus_base_ros)
 
 # add subdirectory "lib"
 set(LIB_PATH "./lib/")
-FILE(GLOB LIB_SRC 
+FILE(GLOB LIB_SRC
   "${LIB_PATH}/PID_Controller/C++/*.cpp"
 )
 
@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   rosserial_arduino
   sensor_msgs
   std_msgs
+  tf2_ros
 )
 
 ## System dependencies are found with CMake's conventions
@@ -148,7 +149,6 @@ add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_generate_messages_cpp)
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 #add_executable(${PROJECT_NAME}_node src/nexus_base_ros_node.cpp)
-add_executable(nexus_teleop_joy src/nexus_teleop_joy.cpp)
 add_executable(nexus_base_controller src/nexus_base_controller.cpp ${LIB_SRC})
 
 ## Rename C++ executable without prefix
@@ -165,7 +165,6 @@ add_executable(nexus_base_controller src/nexus_base_controller.cpp ${LIB_SRC})
 # target_link_libraries(${PROJECT_NAME}_node
 #   ${catkin_LIBRARIES}
 # )
-target_link_libraries(nexus_teleop_joy ${catkin_LIBRARIES} )
 target_link_libraries(nexus_base_controller ${catkin_LIBRARIES} )
 
 #############
