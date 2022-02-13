@@ -57,17 +57,17 @@
 
 #define LOOP_RATE 20
 #define QUEUE_SIZE 1 //subscriber buffer size
-#define WHEEL_RADIUS 0.05 // [m]
-#define DISTANCE_LEFT_TO_RIGHT_WHEEL .3 // [m]
-#define DISTANCE_FRONT_TO_REAR_WHEEL .3 // [m]
+#define WHEEL_RADIUS 0.03 // [m]
+#define DISTANCE_LEFT_TO_RIGHT_WHEEL 0.2286 // [m]
+#define DISTANCE_FRONT_TO_REAR_WHEEL 0.2032 // [m]
 #define WHEEL_SEPARATION_WIDTH (DISTANCE_LEFT_TO_RIGHT_WHEEL/2.0)
 #define WHEEL_SEPARATION_LENGTH (DISTANCE_FRONT_TO_REAR_WHEEL/2.0)
-#define ENC_CPR 12.0	// encoder counts/rev.
-#define GEAR_REDUC 64.0	// gears reduction ratio
+#define ENC_CPR 4	// encoder counts/rev.
+#define GEAR_REDUC 40	// gears reduction ratio
 #define TS (1/20.0)	// loop period in wheel-base Arduino (via parameter sever?)
-#define CPP2RADPS (2.0*M_PI/(TS*ENC_CPR*GEAR_REDUC))	// counts per loop period to rad/s conversion factor.
+#define CPP2RADPS -(2.0*M_PI/(TS*ENC_CPR*GEAR_REDUC))	// counts per loop period to rad/s conversion factor.
 #define DEADBAND 10 // Stops actuating motors when: -DEADBAND < actuation < DEADBAND
-		    // too large values will lead to instabillity 
+		    // too large values will lead to instabillity
 
 using namespace std;
 
@@ -88,6 +88,9 @@ private:
 	ros::Subscriber cmd_vel_sub_;
 	ros::Subscriber raw_vel_sub_;
 	ros::Time last_time;
+
+	// Define the odom broadcaster
+	tf2_ros::TransformBroadcaster odom_broadcaster_;
 	nav_msgs::Odometry odom;
 	tf2::Quaternion odom_quat;
 	geometry_msgs::TransformStamped odom_trans;
@@ -164,7 +167,7 @@ NexusBaseController::NexusBaseController():
 	odom_pub_ = nh_.advertise<nav_msgs::Odometry>("sensor_odom", QUEUE_SIZE);
 	cmd_vel_sub_ = nh_.subscribe<geometry_msgs::Twist>("cmd_vel", QUEUE_SIZE, &NexusBaseController::cmdVelCallBack, this);
 	raw_vel_sub_ = nh_.subscribe<nexus_base_ros::Encoders>("wheel_vel", QUEUE_SIZE, &NexusBaseController::rawVelCallBack, this);
-}	
+}
 
 
 
@@ -172,27 +175,30 @@ NexusBaseController::NexusBaseController():
 void NexusBaseController::cmdVelCallBack(const geometry_msgs::Twist::ConstPtr& twist_aux)
 {
 	// - Forward kinematics -
-	// Taken from David Kohanbash, Drive Kinematics: Skid Steer & 
+	// Taken from David Kohanbash, Drive Kinematics: Skid Steer &
 	// Mecanum (ROS Twist included), http://robotsforroboticists.com/drive-kinematics/
-	cmd_wheel_left_front_ = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y - 
+	cmd_wheel_left_front_ = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y -
 		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
-	cmd_wheel_left_rear_ = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y - 
+	cmd_wheel_left_rear_  = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y -
 		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
-	cmd_wheel_right_rear_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y + 
-		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z); 
-	cmd_wheel_right_front_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y + 
+	cmd_wheel_right_rear_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y +
+		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
+	cmd_wheel_right_front_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y +
 		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
 
-/*	// print to console for debugging purpose
-	if( (cmd_wheel_left_front_!=prev_cmd_wheel_left_front_) || 
-		(cmd_wheel_right_front_!=prev_cmd_wheel_right_front_) || 
-		(cmd_wheel_left_rear_!=prev_cmd_wheel_left_rear_) || 
+	// print to console for debugging purpose
+	/*if( (cmd_wheel_left_front_!=prev_cmd_wheel_left_front_) ||
+		(cmd_wheel_right_front_!=prev_cmd_wheel_right_front_) ||
+		(cmd_wheel_left_rear_!=prev_cmd_wheel_left_rear_) ||
 		(cmd_wheel_right_rear_!=prev_cmd_wheel_right_rear_)) {
-		ROS_INFO("\ncmd_FL=%.2f\ncmd_FR=%.2f\ncmd_RL=%.2f\ncmd_RR=%.2f\n", 
-			cmd_wheel_left_front_, cmd_wheel_right_front_, cmd_wheel_left_rear_, 
+		ROS_INFO("\ncmd_FL=%.2f\ncmd_FR=%.2f\ncmd_RL=%.2f\ncmd_RR=%.2f\n",
+			cmd_wheel_left_front_, cmd_wheel_right_front_, cmd_wheel_left_rear_,
 			cmd_wheel_right_rear_);
 	}
-*/
+	ROS_INFO("\ncmd_FL=%.2f\ncmd_FR=%.2f\ncmd_RL=%.2f\ncmd_RR=%.2f\n",
+			cmd_wheel_left_front_, cmd_wheel_right_front_, cmd_wheel_left_rear_,
+			cmd_wheel_right_rear_);*/
+
 	//store the old values
 	prev_cmd_wheel_left_front_ = cmd_wheel_left_front_;
 	prev_cmd_wheel_left_rear_ = cmd_wheel_left_rear_;
@@ -209,7 +215,7 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	nexus_base_ros::Motors cmd_motor;
 	geometry_msgs::Twist twist;
         nav_msgs::Odometry odom;
-	
+
 	// timing
 	ros::Time current_time = ros::Time::now();
 	dt_ = (current_time - last_time).toSec();
@@ -223,12 +229,12 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	vel_wheel_right_front_ = rawvel_aux->enc3 * CPP2RADPS;
 
 	// print to console for debugging purpose
-/*	if( (vel_wheel_left_front_ != prev_vel_wheel_left_front_) || 
-		(vel_wheel_right_front_ != prev_vel_wheel_right_front_) || 
-		(vel_wheel_left_rear_ != prev_vel_wheel_left_rear_) || 
+/*	if( (vel_wheel_left_front_ != prev_vel_wheel_left_front_) ||
+		(vel_wheel_right_front_ != prev_vel_wheel_right_front_) ||
+		(vel_wheel_left_rear_ != prev_vel_wheel_left_rear_) ||
 		(vel_wheel_right_rear_ != prev_vel_wheel_right_rear_)) {
-		ROS_INFO("\nvel_FL=%.2f\nvel_RL=%.2f\nvel_RR=%.2f\nvel_FR=%.2f\n", 
-			vel_wheel_left_front_, vel_wheel_left_rear_, vel_wheel_right_rear_, 
+		ROS_INFO("\nvel_FL=%.2f\nvel_RL=%.2f\nvel_RR=%.2f\nvel_FR=%.2f\n",
+			vel_wheel_left_front_, vel_wheel_left_rear_, vel_wheel_right_rear_,
 			vel_wheel_right_front_);
 	}
 	prev_vel_wheel_left_front_ = vel_wheel_left_front_; // store the old values
@@ -237,13 +243,13 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	prev_vel_wheel_right_front_ = vel_wheel_right_front_;
 */
 	// - Inverse Kinematics -
-	// Taken from David Kohanbash, Drive Kinematics: Skid Steer & 
+	// Taken from David Kohanbash, Drive Kinematics: Skid Steer &
 	// Mecanum (ROS Twist included), http://robotsforroboticists.com/drive-kinematics/
-	linear_velocity_x_ = -(-vel_wheel_left_front_ + vel_wheel_right_front_ - vel_wheel_left_rear_ + 
+	linear_velocity_x_ = -(-vel_wheel_left_front_ + vel_wheel_right_front_ - vel_wheel_left_rear_ +
 		vel_wheel_right_rear_) * (WHEEL_RADIUS/4);
-	linear_velocity_y_ = (vel_wheel_left_front_ + vel_wheel_right_front_ - vel_wheel_left_rear_ - 
+	linear_velocity_y_ = (vel_wheel_left_front_ + vel_wheel_right_front_ - vel_wheel_left_rear_ -
 		vel_wheel_right_rear_) * (WHEEL_RADIUS/4);
-	angular_velocity_z_ = (vel_wheel_left_front_ + vel_wheel_right_front_ + vel_wheel_left_rear_ + 
+	angular_velocity_z_ = (vel_wheel_left_front_ + vel_wheel_right_front_ + vel_wheel_left_rear_ +
 		vel_wheel_right_rear_) * (WHEEL_RADIUS/(4 * (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)));
 
 	double delta_heading = angular_velocity_z_ * dt_; // [radians]
@@ -275,6 +281,16 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	myPID_wheel_right_front_.PIDSetpointSet(cmd_wheel_right_front_);
 	myPID_wheel_right_front_.PIDInputSet(vel_wheel_right_front_);
 	myPID_wheel_right_front_.PIDCompute();
+
+	// print to console for debugging purpose
+	/*ROS_INFO("\ncmd_FL=%.2f\ncmd_FR=%.2f\ncmd_RL=%.2f\ncmd_RR=%.2f\n",
+		cmd_wheel_left_front_, cmd_wheel_right_front_, cmd_wheel_left_rear_,
+		cmd_wheel_right_rear_);
+
+	ROS_INFO("\nvel_FL=%.2f\nvel_FR=%.2f\nvel_RL=%.2f\nvel_RR=%.2f\n",
+		vel_wheel_left_front_, vel_wheel_right_front_, vel_wheel_left_rear_,
+		vel_wheel_right_rear_);*/
+
 	// uncomment for closed loop feedback.
 	cmd_motor.motor0 = (short) round(myPID_wheel_left_front_.PIDOutputGet());
 	cmd_motor.motor1 = (short) round(myPID_wheel_left_rear_.PIDOutputGet());
@@ -291,9 +307,9 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 		}
 
 /*	// publish to motors only when actuation value changes.
-	if( (cmd_motor.motor0 != prev_cmd_wheel_left_front_) || 
-		(cmd_motor.motor1 != prev_cmd_wheel_left_rear_) || 
-		(cmd_motor.motor2 != prev_cmd_wheel_right_rear_) || 
+	if( (cmd_motor.motor0 != prev_cmd_wheel_left_front_) ||
+		(cmd_motor.motor1 != prev_cmd_wheel_left_rear_) ||
+		(cmd_motor.motor2 != prev_cmd_wheel_right_rear_) ||
 		(cmd_motor.motor3 != prev_cmd_wheel_right_front_) )
 		{
 		cmd_motor_pub_.publish(cmd_motor);
@@ -321,7 +337,8 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	odom_trans.transform.rotation.w = odom_quat.w();
 	odom_trans.header.stamp = current_time;
 	// publish robot's tf using odom_trans object
-	// odom_broadcaster_.sendTransform(odom_trans);
+	odom_broadcaster_.sendTransform(odom_trans);
+
 	odom.header.stamp = current_time;
 	odom.header.frame_id = "odom";
 	odom.child_frame_id = "base_footprint";
