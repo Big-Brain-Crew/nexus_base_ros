@@ -83,7 +83,7 @@
 
 // control loop timing constants
 #define LOOPTIME 1000000 / MSG_PUB_RATE // loop time in us
-#define PWD_TIMEOUT_VAL PWD_TIMEOUT * MSG_PUB_RATE // nof loop iterations before entering the low power mode when receiving no commands.
+//#define PWD_TIMEOUT_VAL PWD_TIMEOUT * MSG_PUB_RATE // nof loop iterations before entering the low power mode when receiving no commands.
 
 #define M0_PWM_PIN 3 // TIM2 OC2B
 #define M0_DIR_PIN 2
@@ -114,7 +114,7 @@ int encTicks2_prev;
 int encTicks3_prev;
 volatile int pwmVal[4];
 unsigned long loopTimer;
-volatile int timeOutCnt;
+volatile int timeOutCnt = 0;
 volatile int ledCnt = 0;
 volatile boolean stopmotors = false; //initially the controller is on.
 // function prototype
@@ -175,7 +175,7 @@ void cmdMotors_CallBack(const nexus_base_ros::Motors& msg) {
       OCR1A = abs(pwmVal[2]); // fast PWM update M2
       OCR1B = abs(pwmVal[3]); // fast PWM update M3
     }
-    timeOutCnt = PWD_TIMEOUT_VAL; //set timer
+    // timeOutCnt = PWD_TIMEOUT_VAL; //set timer
     digitalWriteFast(LED, HIGH);
     ledCnt = 20;
   }
@@ -287,7 +287,7 @@ void setup() {
   // nh.advertiseService(arming_srv);
   stopmotors = false;
 
-  timeOutCnt = PWD_TIMEOUT_VAL;
+  timeOutCnt = 0;//PWD_TIMEOUT_VAL;
   loopTimer = micros() + LOOPTIME; //Set the loopTimer variable.
 }
 
@@ -314,11 +314,11 @@ void loop() {
   enc_msg.header.stamp = nh.now();
   pub.publish(&enc_msg);
 
-  timeOutCnt--;
-  if (timeOutCnt <= 0) {
-    disableMotors();
-    timeOutCnt = 0; //keep <=0
-  }
+  // timeOutCnt--;
+  // if (timeOutCnt <= 0) {
+  //   disableMotors();
+  //   timeOutCnt = 0; //keep <=0
+  // }
 
   ledCnt--;
   if (ledCnt <= 0) {

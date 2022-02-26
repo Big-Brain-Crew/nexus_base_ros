@@ -42,7 +42,6 @@
  *                           -----------------------------
  */
 
-
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
 #include <tf2_ros/transform_broadcaster.h>
@@ -74,7 +73,6 @@
 		    // too large values will lead to instabillity
 
 using namespace std;
-
 
 
 class NexusBaseController
@@ -173,7 +171,6 @@ NexusBaseController::NexusBaseController():
 	cmd_motor_pub_ = nh_.advertise<nexus_base_ros::Motors>("cmd_motor", QUEUE_SIZE);
 	cmd_vel_motor_pub_ = nh_.advertise<nexus_base_ros::Motors>("cmd_vel_motor", QUEUE_SIZE);
 	odom_pub_ = nh_.advertise<nav_msgs::Odometry>("sensor_odom", QUEUE_SIZE);
-	ROS_WARN("Instantiating callbacks %p", this);
 	cmd_vel_sub_ = nh_.subscribe<geometry_msgs::Twist>("cmd_vel", QUEUE_SIZE, &NexusBaseController::cmdVelCallBack, this);
 	raw_vel_sub_ = nh_.subscribe<nexus_base_ros::Encoders>("wheel_vel", QUEUE_SIZE, &NexusBaseController::rawVelCallBack, this);
 }
@@ -317,12 +314,14 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	cmd_motor.motor2 = (short) round(myPID_wheel_right_rear_.PIDOutputGet());
 	cmd_motor.motor3 = (short) round(myPID_wheel_right_front_.PIDOutputGet());
 
+
 	//publish to motors when actuation is outside DEADBAND margin only.
 	if( cmd_motor.motor0 <= -DEADBAND || cmd_motor.motor0 >= DEADBAND ||
 		cmd_motor.motor1 <= -DEADBAND || cmd_motor.motor1 >= DEADBAND ||
 		cmd_motor.motor2 <= -DEADBAND || cmd_motor.motor2 >= DEADBAND ||
 		cmd_motor.motor3 <= -DEADBAND || cmd_motor.motor3 >= DEADBAND )
 		{
+
 		cmd_motor.header.stamp = current_time;
 		cmd_motor_pub_.publish(cmd_motor);
 		}
@@ -405,15 +404,19 @@ void NexusBaseController::pidParamsCallback(nexus_base_ros::PIDParamsConfig &con
 	myPID_wheel_right_rear_.PIDTuningsSet(Kp, Ki, Kd);
 	myPID_wheel_right_front_.PIDTuningsSet(Kp, Ki, Kd);
 
-	// PRINT THIS memory pointer
-	// ROS_WARN("PIDParamsCallback: %p\n", this);
-
+	// Print new parameters
+	ROS_INFO("\nPID parameters updated:\n");
+	ROS_INFO("Kp=%f\n", Kp);
+	ROS_INFO("Ki=%f\n", Ki);
+	ROS_INFO("Kd=%f\n", Kd);
 }
+
 
 
 
 int main(int argc, char** argv)
 {
+	// Initialize ros node
 	ROS_INFO("Starting Nexus Base Controller");
 	ros::init(argc, argv, "nexus_base_controller");
 	NexusBaseController nexus_base_controller;
@@ -422,9 +425,16 @@ int main(int argc, char** argv)
 	dynamic_reconfigure::Server<nexus_base_ros::PIDParamsConfig> server;
 	dynamic_reconfigure::Server<nexus_base_ros::PIDParamsConfig>::CallbackType f;
 
-	// f = boost::bind(nexus_base_controller.pidParamsCallback, _1, _2);
+	// Override SIGINT handler
+	// signal(SIGINT, sigintHandler);
+	// Need to bind member function onShutdown to sigIntHandler
+
 	f = boost::bind(&NexusBaseController::pidParamsCallback, &nexus_base_controller, _1, _2);
 	server.setCallback(f);
 
+	// Set rate of the node
+	ros::Rate loop_rate(100);
+
+	//spin
 	ros::spin();
 }
