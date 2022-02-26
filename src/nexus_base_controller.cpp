@@ -54,6 +54,10 @@
 #include "nexus_base_ros/Motors.h"
 #include "pid_controller.h"
 
+// Dynamic reconfigure parameters
+#include <dynamic_reconfigure/server.h>
+#include <nexus_base_ros/PIDParamsConfig.h>
+
 
 #define LOOP_RATE 20
 #define QUEUE_SIZE 1 //subscriber buffer size
@@ -66,7 +70,7 @@
 #define GEAR_REDUC 40	// gears reduction ratio
 #define TS (1/20.0)	// loop period in wheel-base Arduino (via parameter sever?)
 #define CPP2RADPS -(2.0*M_PI/(TS*ENC_CPR*GEAR_REDUC))	// counts per loop period to rad/s conversion factor.
-#define DEADBAND 10 // Stops actuating motors when: -DEADBAND < actuation < DEADBAND
+#define DEADBAND 20 // Stops actuating motors when: -DEADBAND < actuation < DEADBAND
 		    // too large values will lead to instabillity
 
 using namespace std;
@@ -77,6 +81,7 @@ class NexusBaseController
 {
 public:
 	NexusBaseController();
+	void pidParamsCallback(nexus_base_ros::PIDParamsConfig &config, uint32_t level);
 
 private:
 	void cmdVelCallBack(const geometry_msgs::Twist::ConstPtr& twist_aux);
@@ -85,6 +90,7 @@ private:
 	ros::NodeHandle nh_;
 	ros::Publisher cmd_motor_pub_;
 	ros::Publisher odom_pub_;
+	ros::Publisher cmd_vel_motor_pub_;
 	ros::Subscriber cmd_vel_sub_;
 	ros::Subscriber raw_vel_sub_;
 	ros::Time last_time;
@@ -95,9 +101,10 @@ private:
 	tf2::Quaternion odom_quat;
 	geometry_msgs::TransformStamped odom_trans;
 
-	const float Kp = 4.0; //controller coeff. (via parameter server?)
-	const float Ki = 25.0;
-	const float Kd = 0.75;
+	float Kp = 8.0; //controller coeff. (via parameter server?)
+	float Ki = 0.1;
+	float Kd = 0.05;
+	//TODO change these
 	const float minOutput = -150;
 	const float maxOutput = 150;
 	double cmd_wheel_left_front_; // [rad/s]
@@ -164,7 +171,9 @@ NexusBaseController::NexusBaseController():
 	heading_(0)
 {
 	cmd_motor_pub_ = nh_.advertise<nexus_base_ros::Motors>("cmd_motor", QUEUE_SIZE);
+	cmd_vel_motor_pub_ = nh_.advertise<nexus_base_ros::Motors>("cmd_vel_motor", QUEUE_SIZE);
 	odom_pub_ = nh_.advertise<nav_msgs::Odometry>("sensor_odom", QUEUE_SIZE);
+	ROS_WARN("Instantiating callbacks %p", this);
 	cmd_vel_sub_ = nh_.subscribe<geometry_msgs::Twist>("cmd_vel", QUEUE_SIZE, &NexusBaseController::cmdVelCallBack, this);
 	raw_vel_sub_ = nh_.subscribe<nexus_base_ros::Encoders>("wheel_vel", QUEUE_SIZE, &NexusBaseController::rawVelCallBack, this);
 }
@@ -212,7 +221,10 @@ void NexusBaseController::cmdVelCallBack(const geometry_msgs::Twist::ConstPtr& t
 
 void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPtr& rawvel_aux)
 {
+	// Command to send to motors
 	nexus_base_ros::Motors cmd_motor;
+	// Command to PID controller
+	nexus_base_ros::Motors cmd_vel_motor;
 	geometry_msgs::Twist twist;
         nav_msgs::Odometry odom;
 
@@ -257,18 +269,26 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
     	double delta_y = (linear_velocity_x_ * sin(heading_) + linear_velocity_y_ * cos(heading_)) * dt_; // [m]
 
 	//calculate current position of the robot
-    	x_pos_ += delta_x;
-    	y_pos_ += delta_y;
-    	heading_ += delta_heading;
+	x_pos_ += delta_x;
+	y_pos_ += delta_y;
+	heading_ += delta_heading;
 	//ROS_INFO("\nx=%.1f, y=%.1f, heading=%.2f\n", x_pos_, y_pos_, heading_);
 
 	// uncomment for feed forward (open loop) testing.
-/*	cmd_motor.motor0 = (short) lround(10*cmd_wheel_left_front_);
-	cmd_motor.motor1 = (short) lround(10*cmd_wheel_left_rear_);
-	cmd_motor.motor2 = (short) lround(10*cmd_wheel_right_rear_);
-	cmd_motor.motor3 = (short) lround(10*cmd_wheel_right_front_);
-*/
+	// cmd_motor.motor0 = (short) lround(10*cmd_wheel_left_front_);
+	// cmd_motor.motor1 = (short) lround(10*cmd_wheel_left_rear_);
+	// cmd_motor.motor2 = (short) lround(10*cmd_wheel_right_rear_);
+	// cmd_motor.motor3 = (short) lround(10*cmd_wheel_right_front_);
+
 	// do PID control
+	cmd_vel_motor.motor0 = (short) round(-cmd_wheel_left_front_);
+	cmd_vel_motor.motor1 = (short) round(-cmd_wheel_left_rear_);
+	cmd_vel_motor.motor2 = (short) round(-cmd_wheel_right_rear_);
+	cmd_vel_motor.motor3 = (short) round(-cmd_wheel_right_front_);
+
+	cmd_vel_motor.header.stamp = current_time;
+	cmd_vel_motor_pub_.publish(cmd_vel_motor);
+
 	myPID_wheel_left_front_.PIDSetpointSet(cmd_wheel_left_front_);
 	myPID_wheel_left_front_.PIDInputSet(vel_wheel_left_front_);
 	myPID_wheel_left_front_.PIDCompute();
@@ -303,10 +323,11 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 		cmd_motor.motor2 <= -DEADBAND || cmd_motor.motor2 >= DEADBAND ||
 		cmd_motor.motor3 <= -DEADBAND || cmd_motor.motor3 >= DEADBAND )
 		{
+		cmd_motor.header.stamp = current_time;
 		cmd_motor_pub_.publish(cmd_motor);
 		}
 
-/*	// publish to motors only when actuation value changes.
+	// publish to motors only when actuation value changes.
 	if( (cmd_motor.motor0 != prev_cmd_wheel_left_front_) ||
 		(cmd_motor.motor1 != prev_cmd_wheel_left_rear_) ||
 		(cmd_motor.motor2 != prev_cmd_wheel_right_rear_) ||
@@ -318,7 +339,7 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	prev_cmd_motor_left_rear_ = cmd_motor.motor1;
 	prev_cmd_motor_right_rear_ = cmd_motor.motor2;
 	prev_cmd_motor_right_front_ = cmd_motor.motor3;
-*/
+
 
 	// The code below for odometry has been copied from the Linobot project, https://github.com/linorobot/linorobot
 	// calculate robot's heading in quaternion angle
@@ -374,13 +395,36 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 }
 
 
+void NexusBaseController::pidParamsCallback(nexus_base_ros::PIDParamsConfig &config, uint32_t level) {
+	Kp = config.Kp;
+	Ki = config.Ki;
+	Kd = config.Kd;
+	//Set PID parameters for all wheels
+	myPID_wheel_left_front_.PIDTuningsSet(Kp, Ki, Kd);
+	myPID_wheel_left_rear_.PIDTuningsSet(Kp, Ki, Kd);
+	myPID_wheel_right_rear_.PIDTuningsSet(Kp, Ki, Kd);
+	myPID_wheel_right_front_.PIDTuningsSet(Kp, Ki, Kd);
+
+	// PRINT THIS memory pointer
+	// ROS_WARN("PIDParamsCallback: %p\n", this);
+
+}
 
 
 
 int main(int argc, char** argv)
 {
+	ROS_INFO("Starting Nexus Base Controller");
 	ros::init(argc, argv, "nexus_base_controller");
 	NexusBaseController nexus_base_controller;
+
+
+	dynamic_reconfigure::Server<nexus_base_ros::PIDParamsConfig> server;
+	dynamic_reconfigure::Server<nexus_base_ros::PIDParamsConfig>::CallbackType f;
+
+	// f = boost::bind(nexus_base_controller.pidParamsCallback, _1, _2);
+	f = boost::bind(&NexusBaseController::pidParamsCallback, &nexus_base_controller, _1, _2);
+	server.setCallback(f);
 
 	ros::spin();
 }

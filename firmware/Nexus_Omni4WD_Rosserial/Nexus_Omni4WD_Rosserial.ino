@@ -1,72 +1,72 @@
 /*
- * File: Nexus_Omni4WD_Rosserial.ino
- * Purpose: ROSserial node for the Nexus Omni 4-wheeled Mecanum platform controller board 10011 (Duemilanove-328 based)
- * Version: 1.0.0
- * File Date: 21-03-2020
- * Release Date: 21-03-2020
- * URL: https://github.com/MartinStokroos/nexus_base_ros
- * License: MIT License
- *
- *
- * Copyright (c) M.Stokroos 2020
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
- * modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
- * WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
- * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- *
- *
- * NOTE: The Sonars cannot be used simultaneously with the serial interface!
- *
- * This sketch is the maximum reasonable functionality that could be implemented with rosserial.
- * Because of the limited memory size of the 328, it is not possible to implement a cmd_vel subscriber
- * and four PID wheel controllers.
- *
- * commanding the wheels, PWM value signed int16
- * cmd_motor/motor0    left front
- * cmd_motor/motor1    left rear
- * cmd_motor/motor2    right rear
- * cmd_motor/motor3    right front
- *
- * raw velocity read back (number of encoder increments/decrements each sample period)
- * wheel_vel/enc0    left front
- * wheel_vel/enc1    left rear
- * wheel_vel/enc2    right rear
- * wheel_vel/enc3    right front
- *
- * Start communiction with:
- * rosrun rosserial_python serial_node.py /dev/ttyUSB0
- *
- * Sometimes it takes a moment to establish the communication because a false character has to be flushed
- * from the buffer first.
- *
- *
- *                           -----------------------------
- *                          |                             |
- *            left front M0 |                             | M3 right front
- *                          |                             |
- *                           -----------------------------
- *                          |                             |
- *                          |                             |
- *                          |                             |
- *                          |                             |
- *                          |                             |
- *                          |                             |
- *                          |                             |
- *                          |                             |
- *             left rear M1 |                             | M2 right rear
- *                          |                             |
- *                           -----------------------------
- *
- *
- */
+   File: Nexus_Omni4WD_Rosserial.ino
+   Purpose: ROSserial node for the Nexus Omni 4-wheeled Mecanum platform controller board 10011 (Duemilanove-328 based)
+   Version: 1.0.0
+   File Date: 21-03-2020
+   Release Date: 21-03-2020
+   URL: https://github.com/MartinStokroos/nexus_base_ros
+   License: MIT License
+
+
+   Copyright (c) M.Stokroos 2020
+
+   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
+   files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
+   modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+   Software is furnished to do so, subject to the following conditions:
+   The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+   WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+   COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+
+   NOTE: The Sonars cannot be used simultaneously with the serial interface!
+
+   This sketch is the maximum reasonable functionality that could be implemented with rosserial.
+   Because of the limited memory size of the 328, it is not possible to implement a cmd_vel subscriber
+   and four PID wheel controllers.
+
+   commanding the wheels, PWM value signed int16
+   cmd_motor/motor0    left front
+   cmd_motor/motor1    left rear
+   cmd_motor/motor2    right rear
+   cmd_motor/motor3    right front
+
+   raw velocity read back (number of encoder increments/decrements each sample period)
+   wheel_vel/enc0    left front
+   wheel_vel/enc1    left rear
+   wheel_vel/enc2    right rear
+   wheel_vel/enc3    right front
+
+   Start communiction with:
+   rosrun rosserial_python serial_node.py /dev/ttyUSB0
+
+   Sometimes it takes a moment to establish the communication because a false character has to be flushed
+   from the buffer first.
+
+
+                             -----------------------------
+                            |                             |
+              left front M0 |                             | M3 right front
+                            |                             |
+                             -----------------------------
+                            |                             |
+                            |                             |
+                            |                             |
+                            |                             |
+                            |                             |
+                            |                             |
+                            |                             |
+                            |                             |
+               left rear M1 |                             | M2 right rear
+                            |                             |
+                             -----------------------------
+
+
+*/
 
 #include <ros.h>
 #include <nexus_base_ros/Encoders.h>
@@ -75,8 +75,8 @@
 #include <nexus_base_ros/ArmingEnable.h>
 #include <EnableInterrupt.h>
 #include <digitalWriteFast.h>   // library for high performance digital reads and writes by jrraines
-                                // see http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1267553811/0
-                                // and http://code.google.com/p/digitalwritefast/
+// see http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1267553811/0
+// and http://code.google.com/p/digitalwritefast/
 
 #define MSG_PUB_RATE 20 // publishing rate in Hz.
 #define PWD_TIMEOUT 3 // motor power time-out in s.
@@ -129,52 +129,52 @@ ros::Publisher pub("wheel_vel", &enc_msg); // Using custom message for publishin
 // ROS Callback Function
 void cmdMotors_CallBack(const nexus_base_ros::Motors& msg) {
 
-     pwmVal[0] = constrain(msg.motor0, -255, 255);
-     pwmVal[1] = constrain(msg.motor1, -255, 255);
-     pwmVal[2] = constrain(msg.motor2, -255, 255);
-     pwmVal[3] = constrain(msg.motor3, -255, 255);
+  pwmVal[0] = constrain(msg.motor0, -255, 255);
+  pwmVal[1] = constrain(msg.motor1, -255, 255);
+  pwmVal[2] = constrain(msg.motor2, -255, 255);
+  pwmVal[3] = constrain(msg.motor3, -255, 255);
 
-  if(!stopmotors){
-     if(pwmVal[0] >= 0) {
-       digitalWriteFast(M0_DIR_PIN, HIGH);
-     }
-     else {
-       digitalWriteFast(M0_DIR_PIN, LOW);
-     }
+  if (!stopmotors) {
+    if (pwmVal[0] >= 0) {
+      digitalWriteFast(M0_DIR_PIN, HIGH);
+    }
+    else {
+      digitalWriteFast(M0_DIR_PIN, LOW);
+    }
 
-     if(pwmVal[1] >= 0) {
-       digitalWriteFast(M1_DIR_PIN, HIGH);
-     }
-     else {
-       digitalWriteFast(M1_DIR_PIN, LOW);
-     }
+    if (pwmVal[1] >= 0) {
+      digitalWriteFast(M1_DIR_PIN, HIGH);
+    }
+    else {
+      digitalWriteFast(M1_DIR_PIN, LOW);
+    }
 
-     if(pwmVal[2] >= 0) {
-       digitalWriteFast(M2_DIR_PIN, HIGH);
-     }
-     else {
-       digitalWriteFast(M2_DIR_PIN, LOW);
-     }
+    if (pwmVal[2] >= 0) {
+      digitalWriteFast(M2_DIR_PIN, HIGH);
+    }
+    else {
+      digitalWriteFast(M2_DIR_PIN, LOW);
+    }
 
-     if(pwmVal[3] >= 0) {
-       digitalWriteFast(M3_DIR_PIN, HIGH);
-     }
-     else {
-       digitalWriteFast(M3_DIR_PIN, LOW);
-     }
+    if (pwmVal[3] >= 0) {
+      digitalWriteFast(M3_DIR_PIN, HIGH);
+    }
+    else {
+      digitalWriteFast(M3_DIR_PIN, LOW);
+    }
 
-     if(timeOutCnt==0) {
-       analogWrite(M0_PWM_PIN, abs(pwmVal[0])); // first time write to start PWM
-       analogWrite(M1_PWM_PIN, abs(pwmVal[1]));
-       analogWrite(M2_PWM_PIN, abs(pwmVal[2]));
-       analogWrite(M3_PWM_PIN, abs(pwmVal[3]));
-     }
-     else {
-       OCR2B = abs(pwmVal[0]); // fast PWM update M0
-       OCR2A = abs(pwmVal[1]); // fast PWM update M1
-       OCR1A = abs(pwmVal[2]); // fast PWM update M2
-       OCR1B = abs(pwmVal[3]); // fast PWM update M3
-     }
+    if (timeOutCnt == 0) {
+      analogWrite(M0_PWM_PIN, abs(pwmVal[0])); // first time write to start PWM
+      analogWrite(M1_PWM_PIN, abs(pwmVal[1]));
+      analogWrite(M2_PWM_PIN, abs(pwmVal[2]));
+      analogWrite(M3_PWM_PIN, abs(pwmVal[3]));
+    }
+    else {
+      OCR2B = abs(pwmVal[0]); // fast PWM update M0
+      OCR2A = abs(pwmVal[1]); // fast PWM update M1
+      OCR1A = abs(pwmVal[2]); // fast PWM update M2
+      OCR1B = abs(pwmVal[3]); // fast PWM update M3
+    }
     timeOutCnt = PWD_TIMEOUT_VAL; //set timer
     digitalWriteFast(LED, HIGH);
     ledCnt = 20;
@@ -217,7 +217,7 @@ ros::Subscriber<nexus_base_ros::Motors> sub("cmd_motor", cmdMotors_CallBack);
 
 
 
-void disableMotors(){
+void disableMotors() {
   // turn motors off by writing a zero
   analogWrite(M0_PWM_PIN, 0);
   analogWrite(M1_PWM_PIN, 0);
@@ -311,23 +311,25 @@ void loop() {
   encTicks1_prev = encTicks1;
   encTicks2_prev = encTicks2;
   encTicks3_prev = encTicks3;
-
+  enc_msg.header.stamp = nh.now();
   pub.publish(&enc_msg);
 
   timeOutCnt--;
-  if(timeOutCnt <= 0) {
+  if (timeOutCnt <= 0) {
     disableMotors();
-    timeOutCnt=0; //keep <=0
+    timeOutCnt = 0; //keep <=0
   }
 
   ledCnt--;
-  if(ledCnt <= 0) {
+  if (ledCnt <= 0) {
     digitalWriteFast(LED, LOW);
   }
 
   nh.spinOnce();
 
   // Wait for the remaining time in the loop and set the new loopTimer value.
-  while(loopTimer > micros()) {;}
+  while (loopTimer > micros()) {
+    ;
+  }
   loopTimer += LOOPTIME;
 }

@@ -22,6 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   tf2_ros
+  dynamic_reconfigure
 )
 
 ## System dependencies are found with CMake's conventions
@@ -51,7 +52,7 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add "message_generation" and every package in MSG_DEP_SET to
 ##     find_package(catkin REQUIRED COMPONENTS ...)
 ##   * add "message_runtime" and every package in MSG_DEP_SET to
-##     catkin_package(CATKIN_DEPENDS ...)
+    # catkin_package(CATKIN_DEPENDS dynamic_reconfigure)
 ##   * uncomment the add_*_files sections below as needed
 ##     and list every .msg/.srv/.action file to be processed
 ##   * uncomment the generate_messages entry below
@@ -65,11 +66,11 @@ add_message_files(
 )
 
 ## Generate services in the 'srv' folder
-add_service_files(
-  FILES
-  EmergencyStopEnable.srv
-  ArmingEnable.srv
-)
+# add_service_files(
+#   FILES
+#   EmergencyStopEnable.srv
+#   ArmingEnable.srv
+# )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -100,11 +101,10 @@ generate_messages(
 ##   * uncomment the "generate_dynamic_reconfigure_options" section below
 ##     and list every .cfg file to be processed
 
-## Generate dynamic reconfigure parameters in the 'cfg' folder
-# generate_dynamic_reconfigure_options(
-#   cfg/DynReconf1.cfg
-#   cfg/DynReconf2.cfg
-# )
+# Generate dynamic reconfigure parameters in the 'cfg' folder
+generate_dynamic_reconfigure_options(
+  cfg/pid.cfg
+)
 
 ###################################
 ## catkin specific configuration ##
