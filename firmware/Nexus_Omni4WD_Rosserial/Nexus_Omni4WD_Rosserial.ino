@@ -78,7 +78,7 @@
 // see http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1267553811/0
 // and http://code.google.com/p/digitalwritefast/
 
-#define MSG_PUB_RATE 20 // publishing rate in Hz.
+#define MSG_PUB_RATE 22 // publishing rate in Hz.
 #define PWD_TIMEOUT 3 // motor power time-out in s.
 
 // control loop timing constants
