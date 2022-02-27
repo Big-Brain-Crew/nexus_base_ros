@@ -170,7 +170,7 @@ NexusBaseController::NexusBaseController():
 {
 	cmd_motor_pub_ = nh_.advertise<nexus_base_ros::Motors>("cmd_motor", QUEUE_SIZE);
 	cmd_vel_motor_pub_ = nh_.advertise<nexus_base_ros::Motors>("cmd_vel_motor", QUEUE_SIZE);
-	odom_pub_ = nh_.advertise<nav_msgs::Odometry>("sensor_odom", QUEUE_SIZE);
+	odom_pub_ = nh_.advertise<nav_msgs::Odometry>("odom", QUEUE_SIZE);
 	cmd_vel_sub_ = nh_.subscribe<geometry_msgs::Twist>("cmd_vel", QUEUE_SIZE, &NexusBaseController::cmdVelCallBack, this);
 	raw_vel_sub_ = nh_.subscribe<nexus_base_ros::Encoders>("wheel_vel", QUEUE_SIZE, &NexusBaseController::rawVelCallBack, this);
 }
@@ -183,13 +183,13 @@ void NexusBaseController::cmdVelCallBack(const geometry_msgs::Twist::ConstPtr& t
 	// - Forward kinematics -
 	// Taken from David Kohanbash, Drive Kinematics: Skid Steer &
 	// Mecanum (ROS Twist included), http://robotsforroboticists.com/drive-kinematics/
-	cmd_wheel_left_front_ = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y -
+	cmd_wheel_left_front_ = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y +
 		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
-	cmd_wheel_left_rear_  = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y -
+	cmd_wheel_left_rear_  = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y +
 		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
-	cmd_wheel_right_rear_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y +
+	cmd_wheel_right_rear_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y -
 		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
-	cmd_wheel_right_front_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y +
+	cmd_wheel_right_front_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y -
 		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
 
 	// print to console for debugging purpose
@@ -258,7 +258,7 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 		vel_wheel_right_rear_) * (WHEEL_RADIUS/4);
 	linear_velocity_y_ = (vel_wheel_left_front_ + vel_wheel_right_front_ - vel_wheel_left_rear_ -
 		vel_wheel_right_rear_) * (WHEEL_RADIUS/4);
-	angular_velocity_z_ = (vel_wheel_left_front_ + vel_wheel_right_front_ + vel_wheel_left_rear_ +
+	angular_velocity_z_ = -(vel_wheel_left_front_ + vel_wheel_right_front_ + vel_wheel_left_rear_ +
 		vel_wheel_right_rear_) * (WHEEL_RADIUS/(4 * (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)));
 
 	double delta_heading = angular_velocity_z_ * dt_; // [radians]
@@ -345,7 +345,7 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	// ROS has a function to calculate yaw in quaternion angle
 	odom_quat.setRPY(0,0,heading_);
 	odom_trans.header.frame_id = "odom";
-	odom_trans.child_frame_id = "base_footprint";
+	odom_trans.child_frame_id = "base_link";
 	// robot's position in x,y, and z
 	odom_trans.transform.translation.x = x_pos_;
 	odom_trans.transform.translation.y = y_pos_;
@@ -433,8 +433,13 @@ int main(int argc, char** argv)
 	server.setCallback(f);
 
 	// Set rate of the node
-	ros::Rate loop_rate(100);
+	ros::Rate loop_rate(22);
 
-	//spin
-	ros::spin();
+	// Main loop
+	while (ros::ok())
+	{
+		ros::spinOnce();
+		loop_rate.sleep();
+	}
+
 }
