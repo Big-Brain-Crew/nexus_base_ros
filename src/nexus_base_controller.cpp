@@ -361,7 +361,7 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 
 	odom.header.stamp = current_time;
 	odom.header.frame_id = "odom";
-	odom.child_frame_id = "base_footprint";
+	odom.child_frame_id = "base_link";
 	// robot's position in x,y, and z
 	odom.pose.pose.position.x = x_pos_;
 	odom.pose.pose.position.y = y_pos_;
