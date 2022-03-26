@@ -116,7 +116,7 @@ volatile int pwmVal[4];
 unsigned long loopTimer;
 volatile int timeOutCnt = 0;
 volatile int ledCnt = 0;
-volatile boolean stopmotors = false; //initially the controller is on.
+volatile boolean stopmotors = true; //initially the controller is on.
 // function prototype
 void disableMotors(void);
 
@@ -187,31 +187,31 @@ ros::Subscriber<nexus_base_ros::Motors> sub("cmd_motor", cmdMotors_CallBack);
 
 
 // Emergency Stop Callback
-// void EmergencyStop_CallBack(const nexus_base_ros::EmergencyStopEnableRequest& req, nexus_base_ros::EmergencyStopEnableResponse& res) {
-//   // handle request
-//   if(req.enable) {
-//     disableMotors();
-//     stopmotors = true;
-//   }
-//   // generate response
-//   res.success = true;
-// }
-// ros::ServiceServer<nexus_base_ros::EmergencyStopEnableRequest, nexus_base_ros::EmergencyStopEnableResponse> halt_srv("emergency_stop_enable", &EmergencyStop_CallBack);
+void EmergencyStop_CallBack(const nexus_base_ros::EmergencyStopEnableRequest& req, nexus_base_ros::EmergencyStopEnableResponse& res) {
+  // handle request
+  if(req.enable) {
+    disableMotors();
+    stopmotors = true;
+  }
+  // generate response
+  res.success = true;
+}
+ros::ServiceServer<nexus_base_ros::EmergencyStopEnableRequest, nexus_base_ros::EmergencyStopEnableResponse> halt_srv("emergency_stop_enable", &EmergencyStop_CallBack);
 
 
 
 
 
 // Arming Enable CallBack
-// void ArmingEnable_CallBack(const nexus_base_ros::ArmingEnableRequest& req, nexus_base_ros::ArmingEnableResponse& res) {
-//   // handle request
-//   if(req.enable){
-//     stopmotors = false;
-//   }
-//   // generate response
-//   res.success = true;
-// }
-// ros::ServiceServer<nexus_base_ros::ArmingEnableRequest, nexus_base_ros::ArmingEnableResponse> arming_srv("arming_enable", &ArmingEnable_CallBack);
+void ArmingEnable_CallBack(const nexus_base_ros::ArmingEnableRequest& req, nexus_base_ros::ArmingEnableResponse& res) {
+  // handle request
+  if(req.enable){
+    stopmotors = false;
+  }
+  // generate response
+  res.success = true;
+}
+ros::ServiceServer<nexus_base_ros::ArmingEnableRequest, nexus_base_ros::ArmingEnableResponse> arming_srv("arming_enable", &ArmingEnable_CallBack);
 
 
 
@@ -283,9 +283,9 @@ void setup() {
   nh.subscribe(sub);
   // Publish wheel velocities in multi array, using custom msg.
   nh.advertise(pub);
-  // nh.advertiseService(halt_srv);
-  // nh.advertiseService(arming_srv);
-  stopmotors = false;
+  nh.advertiseService(halt_srv);
+  nh.advertiseService(arming_srv);
+  stopmotors = true;
 
   timeOutCnt = 0;//PWD_TIMEOUT_VAL;
   loopTimer = micros() + LOOPTIME; //Set the loopTimer variable.
