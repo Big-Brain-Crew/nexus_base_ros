@@ -99,12 +99,12 @@ private:
 	tf2::Quaternion odom_quat;
 	geometry_msgs::TransformStamped odom_trans;
 
-	float Kp = 8.0; //controller coeff. (via parameter server?)
-	float Ki = 0.1;
-	float Kd = 0.05;
+	float Kp = 10.0; //controller coeff. (via parameter server?)
+	float Ki = 8.0;
+	float Kd = 0.001;
 	//TODO change these
-	const float minOutput = -150;
-	const float maxOutput = 150;
+	const float minOutput = -255;
+	const float maxOutput = 255;
 	double cmd_wheel_left_front_; // [rad/s]
 	double cmd_wheel_left_rear_; // [rad/s]
 	double cmd_wheel_right_rear_; // [rad/s]
