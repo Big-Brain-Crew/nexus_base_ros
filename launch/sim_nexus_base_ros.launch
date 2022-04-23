@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+
+<launch>
+  <!-- Launch Gazebo sim of nexus base -->
+  <include file="$(find nexus_4wd_mecanum_gazebo)/launch/nexus_4wd_mecanum_world.launch" >
+    <arg name="use_sim_time" default="true" />
+    <arg name="gui" default="false" />
+    <arg name="headless" default="false" />
+    <!-- <arg name="world_name" default="$(find nexus_gazebo)/worlds/nexus_4wd_mecanum.world" /> -->
+  </include>
+</launch>

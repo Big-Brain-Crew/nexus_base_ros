@@ -1,0 +1,17 @@
+<?xml version="1.0" ?>
+
+<launch>
+  <machine name="nexplate" address="nexplate" env-loader="/home/ubuntu/catkin_ws/devel/env.sh" />
+
+  <!-- Bringup nexus_base -->
+  <node machine="nexplate" pkg="rosserial_python" type="serial_node.py" name="nexus_base" respawn="false" output="screen" >
+    <param name="port" value="/dev/ttyUSB0" />
+    <param name="baud" value="57600" />
+  </node>
+
+  <!-- Bringup nexus_base_controller node -->
+  <node machine="nexplate" pkg="nexus_base_ros" type="nexus_base_controller" name="base_controller" output="screen" respawn="false" />
+
+  <!-- Launch sensor_driver code -->
+ <include file="$(find sensor_drivers)/launch/default_i2c_sensor.launch" />
+</launch>
