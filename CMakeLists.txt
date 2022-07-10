@@ -70,6 +70,7 @@ add_message_files(
    FILES
    EmergencyStopEnable.srv
    ArmingEnable.srv
+   ResetPID.srv
  )
 
 ## Generate actions in the 'action' folder

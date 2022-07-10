@@ -57,6 +57,9 @@
 #include <dynamic_reconfigure/server.h>
 #include <nexus_base_ros/PIDParamsConfig.h>
 
+// Reset PID service
+#include <nexus_base_ros/ResetPID.h>
+
 
 #define LOOP_RATE 20
 #define QUEUE_SIZE 1 //subscriber buffer size
@@ -65,15 +68,14 @@
 #define DISTANCE_FRONT_TO_REAR_WHEEL 0.2032 // [m]
 #define WHEEL_SEPARATION_WIDTH (DISTANCE_LEFT_TO_RIGHT_WHEEL/2.0)
 #define WHEEL_SEPARATION_LENGTH (DISTANCE_FRONT_TO_REAR_WHEEL/2.0)
-#define ENC_CPR 4	// encoder counts/rev.
+#define ENC_CPR 8	// encoder counts/rev.
 #define GEAR_REDUC 40	// gears reduction ratio
 #define TS (1/20.0)	// loop period in wheel-base Arduino (via parameter sever?)
 #define CPP2RADPS -(2.0*M_PI/(TS*ENC_CPR*GEAR_REDUC))	// counts per loop period to rad/s conversion factor.
 #define DEADBAND 20 // Stops actuating motors when: -DEADBAND < actuation < DEADBAND
 		    // too large values will lead to instabillity
-
+int total=0;
 using namespace std;
-
 
 class NexusBaseController
 {
@@ -84,6 +86,7 @@ public:
 private:
 	void cmdVelCallBack(const geometry_msgs::Twist::ConstPtr& twist_aux);
 	void rawVelCallBack(const nexus_base_ros::Encoders::ConstPtr& rawvel_aux);
+	bool resetPID(nexus_base_ros::ResetPID::Request& req, nexus_base_ros::ResetPID::Response& res);
 
 	ros::NodeHandle nh_;
 	ros::Publisher cmd_motor_pub_;
@@ -92,6 +95,8 @@ private:
 	ros::Subscriber cmd_vel_sub_;
 	ros::Subscriber raw_vel_sub_;
 	ros::Time last_time;
+	ros::ServiceServer resetPIDSrv;
+
 
 	// Define the odom broadcaster
 	tf2_ros::TransformBroadcaster odom_broadcaster_;
@@ -99,9 +104,9 @@ private:
 	tf2::Quaternion odom_quat;
 	geometry_msgs::TransformStamped odom_trans;
 
-	float Kp = 10.0; //controller coeff. (via parameter server?)
-	float Ki = 8.0;
-	float Kd = 0.001;
+	float Kp = 3.1; //controller coeff. (via parameter server?)
+	float Ki = 2.3;
+	float Kd = 0.04;
 	//TODO change these
 	const float minOutput = -255;
 	const float maxOutput = 255;
@@ -172,7 +177,9 @@ NexusBaseController::NexusBaseController():
 	cmd_vel_motor_pub_ = nh_.advertise<nexus_base_ros::Motors>("cmd_vel_motor", QUEUE_SIZE);
 	odom_pub_ = nh_.advertise<nav_msgs::Odometry>("odom", QUEUE_SIZE);
 	cmd_vel_sub_ = nh_.subscribe<geometry_msgs::Twist>("cmd_vel", QUEUE_SIZE, &NexusBaseController::cmdVelCallBack, this);
-	raw_vel_sub_ = nh_.subscribe<nexus_base_ros::Encoders>("wheel_vel", QUEUE_SIZE, &NexusBaseController::rawVelCallBack, this);
+	raw_vel_sub_ = nh_.subscribe<nexus_base_ros::Encoders>("wheel_vel", QUEUE_SIZE, &NexusBaseController::rawVelCallBack,  this);
+
+	resetPIDSrv = nh_.advertiseService("reset_pid", &NexusBaseController::resetPID, (NexusBaseController*) this);
 }
 
 
@@ -229,7 +236,10 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	ros::Time current_time = ros::Time::now();
 	dt_ = (current_time - last_time).toSec();
 	last_time = current_time;
-	//ROS_INFO("dt=%.2f\n", dt_);	//check loop time
+	ROS_INFO("dt=%.2f\n", dt_);	//check loop time
+
+	total += rawvel_aux->enc0;
+	// ROS_INFO("enc counts %d\n", total);
 
 	// read encoders. Units are in encoder-ticks/loop-period
 	vel_wheel_left_front_ = rawvel_aux->enc0 * CPP2RADPS; //flip sign for the left side
@@ -262,8 +272,8 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 		vel_wheel_right_rear_) * (WHEEL_RADIUS/(4 * (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)));
 
 	double delta_heading = angular_velocity_z_ * dt_; // [radians]
-    	double delta_x = (linear_velocity_x_ * cos(heading_) - linear_velocity_y_ * sin(heading_)) * dt_; // [m]
-    	double delta_y = (linear_velocity_x_ * sin(heading_) + linear_velocity_y_ * cos(heading_)) * dt_; // [m]
+	double delta_x = (linear_velocity_x_ * cos(heading_) - linear_velocity_y_ * sin(heading_)) * dt_; // [m]
+	double delta_y = (linear_velocity_x_ * sin(heading_) + linear_velocity_y_ * cos(heading_)) * dt_; // [m]
 
 	//calculate current position of the robot
 	x_pos_ += delta_x;
@@ -355,7 +365,7 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	odom_trans.transform.rotation.y = odom_quat.y();
 	odom_trans.transform.rotation.z = odom_quat.z();
 	odom_trans.transform.rotation.w = odom_quat.w();
-	odom_trans.header.stamp = current_time;
+	odom_trans.header.stamp = ros::Time::now();
 	// publish robot's tf using odom_trans object
 	odom_broadcaster_.sendTransform(odom_trans);
 
@@ -411,6 +421,20 @@ void NexusBaseController::pidParamsCallback(nexus_base_ros::PIDParamsConfig &con
 	ROS_INFO("Kd=%f\n", Kd);
 }
 
+bool NexusBaseController::resetPID(nexus_base_ros::ResetPID::Request& req, nexus_base_ros::ResetPID::Response& res)
+{
+	if(req.reset) 
+	{
+		myPID_wheel_left_front_.PIDReset();
+		myPID_wheel_left_rear_.PIDReset();
+		myPID_wheel_right_rear_.PIDReset();
+		myPID_wheel_right_front_.PIDReset();	
+	}
+
+	res.success = true;
+
+	return true;
+}
 
 
 
