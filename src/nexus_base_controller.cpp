@@ -57,6 +57,9 @@
 #include <dynamic_reconfigure/server.h>
 #include <nexus_base_ros/PIDParamsConfig.h>
 
+// Service for enabling and disabling drive base
+#include <robot_drivers_common/DriveEnable.h>
+
 
 #define LOOP_RATE 20
 #define QUEUE_SIZE 1 //subscriber buffer size
@@ -132,6 +135,11 @@ private:
 	double x_pos_;
 	double y_pos_;
 	double heading_;
+
+	bool stop_motors = true;
+	ros::ServiceServer drive_enable_service;
+    bool drive_enable_callback(ros::ServiceEvent<robot_drivers_common::DriveEnableRequest, robot_drivers_common::DriveEnableResponse>& event);
+
 	//instantiate PIDs
 	PIDControl myPID_wheel_left_front_ = PIDControl(Kp, Ki, Kd, TS, minOutput, maxOutput, AUTOMATIC, DIRECT);
 	PIDControl myPID_wheel_left_rear_ = PIDControl(Kp, Ki, Kd, TS, minOutput, maxOutput, AUTOMATIC, DIRECT);
@@ -183,14 +191,26 @@ void NexusBaseController::cmdVelCallBack(const geometry_msgs::Twist::ConstPtr& t
 	// - Forward kinematics -
 	// Taken from David Kohanbash, Drive Kinematics: Skid Steer &
 	// Mecanum (ROS Twist included), http://robotsforroboticists.com/drive-kinematics/
-	cmd_wheel_left_front_ = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y +
-		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
-	cmd_wheel_left_rear_  = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y +
-		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
-	cmd_wheel_right_rear_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y -
-		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
-	cmd_wheel_right_front_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y -
-		(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
+
+	if(! stop_motors)
+	{
+		cmd_wheel_left_front_ = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y +
+			(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
+		cmd_wheel_left_rear_  = -(1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y +
+			(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
+		cmd_wheel_right_rear_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x - twist_aux->linear.y -
+			(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
+		cmd_wheel_right_front_ = (1/WHEEL_RADIUS) * (-twist_aux->linear.x + twist_aux->linear.y -
+			(WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*twist_aux->angular.z);
+	}
+	else
+	{
+		cmd_wheel_left_front_ = 0;
+		cmd_wheel_left_rear_  = 0;
+		cmd_wheel_right_rear_ = 0;
+		cmd_wheel_right_front_ = 0;
+	}
+
 
 	// print to console for debugging purpose
 	/*if( (cmd_wheel_left_front_!=prev_cmd_wheel_left_front_) ||
@@ -282,6 +302,7 @@ void NexusBaseController::rawVelCallBack(const nexus_base_ros::Encoders::ConstPt
 	cmd_vel_motor.motor1 = (short) round(-cmd_wheel_left_rear_);
 	cmd_vel_motor.motor2 = (short) round(-cmd_wheel_right_rear_);
 	cmd_vel_motor.motor3 = (short) round(-cmd_wheel_right_front_);
+
 
 	cmd_vel_motor.header.stamp = current_time;
 	cmd_vel_motor_pub_.publish(cmd_vel_motor);
@@ -411,7 +432,24 @@ void NexusBaseController::pidParamsCallback(nexus_base_ros::PIDParamsConfig &con
 	ROS_INFO("Kd=%f\n", Kd);
 }
 
+bool NexusBaseController::drive_enable_callback(ros::ServiceEvent<robot_drivers_common::DriveEnableRequest, robot_drivers_common::DriveEnableResponse>& event) {
+  const auto& req = event.getRequest();
+  auto& res = event.getResponse();
 
+  // handle request
+  if(req.enable){
+    stop_motors = false;
+  }
+  else
+  {
+    stop_motors = true;
+  }
+
+  // generate response
+  res.success = true;
+
+  return true;
+}
 
 
 int main(int argc, char** argv)

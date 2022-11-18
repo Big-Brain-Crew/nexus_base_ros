@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf2_ros
   dynamic_reconfigure
+  robot_drivers_common
 )
 
 ## System dependencies are found with CMake's conventions
@@ -118,7 +119,7 @@ generate_dynamic_reconfigure_options(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES nexus_base_ros
-  CATKIN_DEPENDS geometry_msgs message_generation roscpp rospy rosserial_arduino sensor_msgs std_msgs
+  CATKIN_DEPENDS geometry_msgs message_generation roscpp rospy rosserial_arduino sensor_msgs std_msgs robot_drivers_common
 #  DEPENDS system_lib
 )
 

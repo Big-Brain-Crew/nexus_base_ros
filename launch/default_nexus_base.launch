@@ -7,6 +7,7 @@
   <!-- Launch the real base -->
   <group if="$(eval arg('sim_or_real') == 'real')">
     <include file="$(find nexus_base_ros)/launch/real_nexus_base_ros.launch" />
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find nexus_4wd_mecanum_description)/urdf.rviz" required="true" />
   </group>
 
   <!-- Launch the simulated base -->
